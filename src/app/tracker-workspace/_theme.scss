@@ -1,0 +1,70 @@
+@use "@angular/material" as mat;
+// Include once in the host application. The theme is scoped to the workspace.
+@mixin theme {
+  .tracker-workspace,
+  .tracker-workspace-theme {
+    @include mat.theme(
+      (
+        color: (
+          primary: mat.$violet-palette,
+          tertiary: mat.$blue-palette,
+          theme-type: light,
+        ),
+        typography: "Segoe UI",
+        density: -3,
+      )
+    );
+    --mat-sys-primary: #5e6bcf;
+    --mat-sys-surface: #fff;
+    --mat-paginator-container-background-color: #fff;
+    .gps-marker,
+    .gps-cluster,
+    .gps-event-marker {
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transform: translate(-50%, -50%);
+      font:
+        600 14px "Segoe UI",
+        sans-serif;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px #202d4940;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      color: white;
+      background: #3b9e85;
+    }
+    .gps-marker.parked {
+      background: #cfa048;
+      border-radius: 9px;
+    }
+    .gps-marker.offline {
+      background: #949eaf;
+      font-size: 22px;
+    }
+    .gps-marker.selected {
+      outline: 3px solid #6775de;
+      outline-offset: 3px;
+      z-index: 2;
+    }
+    .gps-cluster {
+      width: 42px;
+      height: 42px;
+      border: 5px solid #e1e5f9;
+      background: #6472cd;
+      color: white;
+      font-size: 13px;
+    }
+    .gps-event-marker {
+      background: #dc833f;
+      border-radius: 6px;
+      font-size: 20px;
+    }
+    .gps-marker:focus-visible,
+    .gps-cluster:focus-visible {
+      outline: 3px solid #293a91;
+      outline-offset: 4px;
+    }
+  }
+}

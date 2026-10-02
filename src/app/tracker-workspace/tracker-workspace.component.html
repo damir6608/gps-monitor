@@ -1,0 +1,625 @@
+<header class="workspace-toolbar">
+  <div class="brand">
+    <span class="brand-icon">⌁</span>
+    <div><strong>Макет</strong><span>Мониторинг транспорта</span></div>
+  </div>
+  <div class="fleet-counts">
+    <span
+      ><i class="dot moving"></i><b>{{ vm.counts().moving }}</b> в
+      движении</span
+    ><span
+      ><i class="dot parked"></i><b>{{ vm.counts().parked }}</b> стоянка</span
+    ><span
+      ><i class="dot offline"></i><b>{{ vm.counts().offline }}</b> нет
+      связи</span
+    >
+  </div>
+  <div class="global-actions">
+    <mat-slide-toggle
+      [checked]="vm.simulating()"
+      (change)="vm.simulating.set($event.checked)"
+      >Имитация движения</mat-slide-toggle
+    ><button
+      mat-button
+      (click)="resetLayout()"
+      title="Вернуть пропорции 45/55 и 60/40"
+    >
+      Сбросить расположение</button
+    ><button mat-button (click)="vm.resetDemo()">Сбросить демо</button>
+  </div>
+</header>
+<div class="workspace-meta">
+  <span
+    ><span class="live-dot"></span> Локальная демонстрация
+    <span class="meta-divider">/</span> Москва и Московская область</span
+  ><span
+    >{{ vm.trackers().length }} трекеров ·
+    {{ vm.events().length }} событий</span
+  >
+</div>
+<div class="workspace-scroll">
+  <div
+    class="workspace-grid"
+    [style.grid-template-columns]="
+      'minmax(320px, ' +
+      columnSplit() +
+      'fr) 10px minmax(320px, ' +
+      (100 - columnSplit()) +
+      'fr)'
+    "
+  >
+    <div
+      class="column"
+      [style.grid-template-rows]="
+        'minmax(210px, ' +
+        leftSplit() +
+        'fr) 10px minmax(210px, ' +
+        (100 - leftSplit()) +
+        'fr)'
+      "
+    >
+      <section class="panel trackers-panel" aria-label="Трекеры">
+        <div class="panel-heading">
+          <h2>
+            Транспорт
+            <span class="count-badge">{{ vm.filtered().length }}</span>
+          </h2>
+          <span class="muted">Всего {{ vm.trackers().length }}</span>
+        </div>
+        <div class="filters">
+          <label class="search"
+            ><span>⌕</span
+            ><input
+              aria-label="Поиск трекеров"
+              placeholder="Автомобиль, госномер или водитель"
+              [ngModel]="vm.query()"
+              (ngModelChange)="vm.query.set($event); vm.filtersChanged()"
+          /></label>
+          <div class="filter-row">
+            <select
+              aria-label="Статус трекера"
+              [ngModel]="vm.status()"
+              (ngModelChange)="vm.status.set($event); vm.filtersChanged()"
+            >
+              <option value="">Все статусы</option>
+              @for (key of statusKeys; track key) {
+                <option [value]="key">{{ statuses[key] }}</option>
+              }</select
+            ><select
+              aria-label="Подразделение"
+              [ngModel]="vm.group()"
+              (ngModelChange)="vm.group.set($event); vm.filtersChanged()"
+            >
+              <option value="">Все подразделения</option>
+              @for (group of vm.groups(); track group) {
+                <option [value]="group">{{ group }}</option>
+              }</select
+            ><button class="text-action" (click)="vm.resetFilters()">
+              Сбросить
+            </button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table
+            mat-table
+            [dataSource]="vm.trackerRows()"
+            matSort
+            matSortDisableClear
+            [matSortActive]="vm.trackerSort().active"
+            [matSortDirection]="vm.trackerSort().direction"
+            (matSortChange)="vm.trackerSort.set($event); vm.trackerPage.set(0)"
+          >
+            <ng-container matColumnDef="name"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="name">
+                Автомобиль
+              </th>
+              <td mat-cell *matCellDef="let t">
+                <div class="vehicle-cell">
+                  <span class="vehicle-icon">▰</span>
+                  <div>
+                    <strong>{{ t.name }}</strong
+                    ><span
+                      >{{ t.plate }}
+                      <span class="driver">· {{ t.driver }}</span></span
+                    >
+                  </div>
+                </div>
+              </td></ng-container
+            >
+            <ng-container matColumnDef="status"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="status">
+                Статус
+              </th>
+              <td mat-cell *matCellDef="let t">
+                <span class="status" [class]="'status ' + t.status"
+                  >{{ statusIcon(t.status) }} {{ statusLabel(t.status) }}</span
+                >
+              </td></ng-container
+            >
+            <ng-container matColumnDef="speed"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="speed">
+                км/ч
+              </th>
+              <td mat-cell *matCellDef="let t" class="numeric">
+                {{ t.speed }}
+              </td></ng-container
+            >
+            <ng-container matColumnDef="battery"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="battery">
+                Заряд
+              </th>
+              <td mat-cell *matCellDef="let t">
+                <span [class.low-battery]="t.battery < 20"
+                  >{{ t.battery }}%</span
+                >
+              </td></ng-container
+            >
+            <tr
+              mat-header-row
+              *matHeaderRowDef="trackerColumns; sticky: true"
+            ></tr>
+            <tr
+              mat-row
+              *matRowDef="let row; columns: trackerColumns"
+              class="clickable"
+              [class.selected-row]="vm.selectedId() === row.id"
+              [attr.aria-selected]="vm.selectedId() === row.id"
+              tabindex="0"
+              (click)="vm.select(row.id)"
+              (keydown.enter)="vm.select(row.id)"
+              (keydown.space)="$event.preventDefault(); vm.select(row.id)"
+            ></tr>
+          </table>
+          @if (!vm.filtered().length) {
+            <div class="empty-state small">
+              <span class="empty-icon">⌕</span
+              ><strong>Транспорт не найден</strong>
+              <p>Измените запрос или сбросьте фильтры.</p>
+              <button mat-button (click)="vm.resetFilters()">
+                Сбросить фильтры
+              </button>
+            </div>
+          }
+        </div>
+        <mat-paginator
+          [selectConfig]="{ panelClass: 'tracker-workspace-theme' }"
+          aria-label="Страницы трекеров"
+          [length]="vm.filtered().length"
+          [pageIndex]="vm.trackerPage()"
+          [pageSize]="vm.trackerSize()"
+          [pageSizeOptions]="[5, 10, 20, 40]"
+          (page)="vm.page($event, 'trackers')"
+          showFirstLastButtons
+        />
+      </section>
+      <div
+        workspaceSplitter
+        orientation="horizontal"
+        class="splitter horizontal"
+        aria-label="Высота таблиц транспорта и событий"
+        [value]="leftSplit()"
+        (valueChange)="leftSplit.set($event)"
+      >
+        <span></span>
+      </div>
+      <section class="panel events-panel" aria-label="События">
+        <div class="panel-heading">
+          <h2>
+            Лента событий
+            <span class="count-badge">{{ vm.filteredEvents().length }}</span>
+          </h2>
+          <label class="checkbox-label"
+            ><input
+              type="checkbox"
+              [ngModel]="vm.onlySelected()"
+              (ngModelChange)="vm.onlySelected.set($event); vm.eventPage.set(0)"
+            />Только выбранный трекер</label
+          >
+        </div>
+        <div class="filters event-filters">
+          <label class="search"
+            ><span>⌕</span
+            ><input
+              aria-label="Поиск событий"
+              placeholder="Поиск по событиям"
+              [ngModel]="vm.eventQuery()"
+              (ngModelChange)="vm.eventQuery.set($event); vm.eventPage.set(0)"
+          /></label>
+          <div class="filter-row">
+            <select
+              aria-label="Тип события"
+              [ngModel]="vm.eventType()"
+              (ngModelChange)="vm.eventType.set($event); vm.eventPage.set(0)"
+            >
+              <option value="">Все события</option>
+              @for (key of typeKeys; track key) {
+                <option [value]="key">{{ eventTypes[key] }}</option>
+              }</select
+            ><select
+              aria-label="Важность события"
+              [ngModel]="vm.severity()"
+              (ngModelChange)="vm.severity.set($event); vm.eventPage.set(0)"
+            >
+              <option value="">Любая важность</option>
+              @for (key of severityKeys; track key) {
+                <option [value]="key">{{ severities[key] }}</option>
+              }</select
+            ><button class="text-action" (click)="vm.resetEventFilters()">
+              Сбросить
+            </button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table
+            mat-table
+            [dataSource]="vm.eventRows()"
+            matSort
+            matSortDisableClear
+            [matSortActive]="vm.eventSort().active"
+            [matSortDirection]="vm.eventSort().direction"
+            (matSortChange)="vm.eventSort.set($event); vm.eventPage.set(0)"
+          >
+            <ng-container matColumnDef="time"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="time">
+                Время
+              </th>
+              <td mat-cell *matCellDef="let e" class="event-time">
+                {{ e.time | date: "HH:mm:ss"
+                }}<small>{{ e.time | date: "dd.MM" }}</small>
+              </td></ng-container
+            >
+            <ng-container matColumnDef="vehicle"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="vehicle">
+                Автомобиль
+              </th>
+              <td mat-cell *matCellDef="let e">
+                {{ vm.trackerById().get(e.trackerId)?.name
+                }}<small>{{ vm.trackerById().get(e.trackerId)?.plate }}</small>
+              </td></ng-container
+            >
+            <ng-container matColumnDef="type"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="type">
+                Событие
+              </th>
+              <td mat-cell *matCellDef="let e">
+                {{ eventLabel(e.type) }}
+              </td></ng-container
+            >
+            <ng-container matColumnDef="severity"
+              ><th mat-header-cell *matHeaderCellDef mat-sort-header="severity">
+                Важность
+              </th>
+              <td mat-cell *matCellDef="let e">
+                <span [class]="'severity ' + e.severity">{{
+                  severityLabel(e.severity)
+                }}</span>
+              </td></ng-container
+            >
+            <ng-container matColumnDef="description"
+              ><th mat-header-cell *matHeaderCellDef>Описание</th>
+              <td mat-cell *matCellDef="let e" class="description-cell">
+                {{ e.description }}
+              </td></ng-container
+            >
+            <tr
+              mat-header-row
+              *matHeaderRowDef="eventColumns; sticky: true"
+            ></tr>
+            <tr
+              mat-row
+              *matRowDef="let row; columns: eventColumns"
+              class="clickable"
+              [class.selected-row]="vm.selectedEvent()?.id === row.id"
+              tabindex="0"
+              (click)="vm.selectEvent(row)"
+              (keydown.enter)="vm.selectEvent(row)"
+              (keydown.space)="$event.preventDefault(); vm.selectEvent(row)"
+            ></tr>
+          </table>
+          @if (!vm.filteredEvents().length) {
+            <div class="empty-state small">
+              <strong>Нет подходящих событий</strong>
+              <p>
+                {{
+                  vm.onlySelected() && !vm.selected()
+                    ? "Выберите автомобиль в таблице или на карте."
+                    : "Попробуйте изменить фильтры."
+                }}
+              </p>
+            </div>
+          }
+        </div>
+        <mat-paginator
+          [selectConfig]="{ panelClass: 'tracker-workspace-theme' }"
+          aria-label="Страницы событий"
+          [length]="vm.filteredEvents().length"
+          [pageIndex]="vm.eventPage()"
+          [pageSize]="vm.eventSize()"
+          [pageSizeOptions]="[5, 10, 20, 40]"
+          (page)="vm.page($event, 'events')"
+          showFirstLastButtons
+        />
+      </section>
+    </div>
+    <div
+      workspaceSplitter
+      class="splitter vertical"
+      aria-label="Ширина колонок таблиц и карты"
+      [value]="columnSplit()"
+      (valueChange)="columnSplit.set($event)"
+    >
+      <span></span>
+    </div>
+    <div
+      class="column"
+      [style.grid-template-rows]="
+        'minmax(210px, ' +
+        rightSplit() +
+        'fr) 10px minmax(210px, ' +
+        (100 - rightSplit()) +
+        'fr)'
+      "
+    >
+      <section class="panel map-panel" aria-label="Карта транспорта">
+        <div class="panel-heading">
+          <h2>Карта <span class="map-region">Москва</span></h2>
+          <span class="muted" data-testid="map-count"
+            >{{ vm.filtered().length }} объектов по фильтрам</span
+          ><button class="text-action" (click)="settingsOpen.update(v=>!v)">
+            Настройки
+          </button>
+        </div>
+        <div class="map-area">
+          <div #mapHost class="map-host"></div>
+          @if (map.state() !== "ready") {
+            <div class="map-placeholder">
+              <div class="map-placeholder-symbol">⌖</div>
+              <span class="eyebrow">ЯНДЕКС КАРТЫ · API V3</span>
+              <h3>
+                {{
+                  map.state() === "loading"
+                    ? "Подключаем карту…"
+                    : map.state() === "missing"
+                      ? "Подключите карту"
+                      : "Карта недоступна"
+                }}
+              </h3>
+              <p>
+                {{
+                  map.state() === "missing"
+                    ? "Введите ключ JavaScript API v3. Транспорт, события и имитация уже доступны."
+                    : map.state() === "loading"
+                      ? "Загружаем карту Москвы и Московской области."
+                      : map.error()
+                }}
+              </p>
+              @if (map.state() === "error") {
+                <button mat-stroked-button (click)="retry()">Повторить</button>
+              }
+              @if (map.state() !== "loading") {
+                <button mat-flat-button (click)="openMapSettings()">
+                  Настроить подключение
+                </button>
+              }
+            </div>
+          }
+          @if (settingsOpen()) {
+            <form class="map-settings" (ngSubmit)="applyKey()">
+              <div class="panel-heading">
+                <h3>Подключение Яндекс Карт</h3>
+                <button
+                  type="button"
+                  class="text-action"
+                  aria-label="Закрыть настройки"
+                  (click)="settingsOpen.set(false)"
+                >
+                  ×
+                </button>
+              </div>
+              <label
+                >Ключ JavaScript API v3<input
+                  name="apiKey"
+                  aria-label="Ключ Яндекс Карт"
+                  [ngModel]="keyDraft()"
+                  (ngModelChange)="keyDraft.set($event)"
+                  placeholder="Введите API-ключ"
+                  autocomplete="off"
+              /></label>
+              <p>
+                В кабинете Яндекса выберите ключ сервиса «JavaScript API».
+                Обязательно заполните поле «Ограничение по HTTP Referer»: для
+                этой демонстрации укажите только localhost и открывайте
+                приложение по http://localhost:4200/. Ограничение по IP оставьте
+                пустым. Активация ключа и изменений может занять до 15 минут.
+                Ключ сохраняется только в этом браузере.
+              </p>
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="!keyDraft().trim()"
+              >
+                Подключить
+              </button>
+            </form>
+          }
+          @if (map.state() === "ready") {
+            <div class="map-actions">
+              <button (click)="map.zoom(1)" aria-label="Увеличить масштаб">
+                +</button
+              ><button (click)="map.zoom(-1)" aria-label="Уменьшить масштаб">
+                −
+              </button>
+            </div>
+            <div class="map-commands">
+              <button (click)="fitAll()" [disabled]="!vm.filtered().length">
+                ⛶ Показать все найденные</button
+              ><button (click)="focusSelected()" [disabled]="!vm.selected()">
+                ⌖ К выбранному трекеру
+              </button>
+            </div>
+          }
+          @if (map.clusterTrackers().length) {
+            <div class="cluster-list">
+              <div class="panel-heading">
+                <strong>Автомобили в этой точке</strong
+                ><button
+                  class="text-action"
+                  (click)="map.clusterTrackers.set([])"
+                  aria-label="Закрыть список кластера"
+                >
+                  ×
+                </button>
+              </div>
+              @for (t of map.clusterTrackers(); track t.id) {
+                <button (click)="vm.select(t.id); map.clusterTrackers.set([])">
+                  {{ t.name }} <span>{{ t.plate }}</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+        <div class="map-legend">
+          <span><i class="dot moving"></i>➤ В движении</span
+          ><span><i class="dot parked"></i>■ Стоянка</span
+          ><span><i class="dot offline"></i>× Нет связи</span>
+          @if (vm.selectedEvent()) {
+            <span class="event-legend">! Событие · 30 сек.</span>
+          }
+        </div>
+      </section>
+      <div
+        workspaceSplitter
+        orientation="horizontal"
+        class="splitter horizontal"
+        aria-label="Высота карты и карточки трекера"
+        [value]="rightSplit()"
+        (valueChange)="rightSplit.set($event)"
+      >
+        <span></span>
+      </div>
+      <section class="panel detail-panel" aria-label="Карточка трекера">
+        <div class="panel-heading">
+          <h2>Карточка трекера</h2>
+          @if (vm.selected()) {
+            <button class="text-action" (click)="vm.clearSelection()">
+              Снять выбор ×
+            </button>
+          } @else {
+            <span class="muted">Объект не выбран</span>
+          }
+        </div>
+        <div class="detail-scroll">
+          @if (vm.selected(); as t) {
+            <div class="detail-title">
+              <div class="detail-vehicle-icon">▰</div>
+              <div>
+                <h3>{{ t.name }}</h3>
+                <span class="plate">{{ t.plate }}</span
+                ><span class="status" [class]="'status ' + t.status"
+                  >{{ statusIcon(t.status) }} {{ statusLabel(t.status) }}</span
+                >
+              </div>
+              <button mat-stroked-button (click)="toggleRoute()">
+                {{ vm.routeVisible() ? "Скрыть маршрут" : "Показать маршрут" }}
+              </button>
+            </div>
+            <div class="detail-facts">
+              <div>
+                <span>Водитель</span><strong>{{ t.driver }}</strong>
+              </div>
+              <div>
+                <span>Подразделение</span><strong>{{ t.group }}</strong>
+              </div>
+              <div>
+                <span>Последнее сообщение</span
+                ><strong>{{ t.lastMessage | date: "dd.MM, HH:mm:ss" }}</strong>
+              </div>
+              <div>
+                <span>Координаты · долгота, широта</span
+                ><strong
+                  >{{ t.coordinates[0] | number: "1.5-5" }},
+                  {{ t.coordinates[1] | number: "1.5-5" }}</strong
+                >
+              </div>
+            </div>
+            <div class="telemetry">
+              <div>
+                <span>Скорость</span
+                ><strong>{{ t.speed }} <small>км/ч</small></strong>
+              </div>
+              <div>
+                <span>Заряд трекера</span
+                ><strong [class.low-battery]="t.battery < 20"
+                  >{{ t.battery }}<small>%</small></strong
+                >
+              </div>
+              <div class="speed-chart">
+                <span
+                  >История скорости
+                  <small>км/ч · {{ t.history.length }} сообщений</small></span
+                ><svg
+                  viewBox="0 0 400 80"
+                  role="img"
+                  aria-label="График истории скорости"
+                >
+                  <path
+                    d="M0 70H400 M0 40H400 M0 10H400"
+                    stroke="#e8ebf2"
+                    fill="none"
+                  />
+                  <polyline
+                    [attr.points]="speedLine()"
+                    fill="none"
+                    stroke="#6371de"
+                    stroke-width="2.5"
+                  />
+                </svg>
+              </div>
+            </div>
+            @if (vm.selectedEvent(); as e) {
+              <div class="event-detail" role="status">
+                <span class="eyebrow"
+                  >ВЫБРАННОЕ СОБЫТИЕ ·
+                  {{ e.time | date: "dd.MM HH:mm:ss" }}</span
+                ><strong>{{ eventLabel(e.type) }}</strong>
+                <p>{{ e.description }}</p>
+                <small
+                  >{{ e.coordinates[0] | number: "1.5-5" }},
+                  {{ e.coordinates[1] | number: "1.5-5" }} ·
+                  {{ severityLabel(e.severity) }}</small
+                >
+              </div>
+            }
+            <div class="recent-heading">
+              <h3>Последние события</h3>
+              <span>{{ t.id }}</span>
+            </div>
+            <div class="recent-events">
+              @for (e of vm.recentEvents(); track e.id) {
+                <button (click)="vm.selectEvent(e)">
+                  <time>{{ e.time | date: "HH:mm" }}</time
+                  ><span
+                    class="event-dot"
+                    [class]="'event-dot ' + e.severity"
+                  ></span
+                  ><span>{{ eventLabel(e.type) }}</span
+                  ><span class="arrow">↗</span>
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="empty-state card-empty">
+              <span class="empty-icon">⌖</span
+              ><strong>Всё об автомобиле — здесь</strong>
+              <p>
+                Выберите трекер в таблице или на карте,<br />чтобы увидеть
+                телеметрию, события и маршрут.
+              </p>
+              <span class="hint">Можно также выбрать событие в ленте</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  </div>
+</div>

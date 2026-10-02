@@ -1,0 +1,7 @@
+@use "./app/tracker-workspace/theme" as workspace;
+@include workspace.theme;
+// Document sizing belongs to the demo shell, never to the reusable component.
+body:has(> app-root) {
+  margin: 0;
+  background: #f1f3f8;
+}
